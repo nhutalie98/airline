@@ -1,0 +1,178 @@
+---
+title: "Project 1 - Visual"
+output: html_document
+---
+```{r}
+## 1. How many variables and how many observations in the data for CVG_Flights data set
+
+cvg <- read.csv("CVG_Flights.csv", header = TRUE, stringsAsFactors = FALSE, na.strings = "")
+
+nrow(cvg)
+ncol(cvg)
+
+## 2. Missing value and visualizations 
+
+library(naniar)
+library(dplyr)
+library(ggplot2)
+
+any_na <- sapply(cvg, function(cvg) sum(is.na(cvg)))
+any_na
+
+vis_miss(cvg, sort_miss = TRUE)
+gg_miss_var(cvg)
+gg_miss_upset(cvg)
+
+## 3. Summary statistic
+
+summary(cvg)
+
+d<- as.POSIXct(cvg$FLIGHT_DATE, format = "%m/%d/%Y")
+cvg$dm <- format(d, "%m")
+
+# Frequency of Airline delay faceted by Month
+
+ggplot(cvg, aes(AIRLINE_DELAY)) + geom_histogram(bins = 30) + facet_wrap(~dm) + ylab("Airline delay") + xlab("Month") + ggtitle("Frequency of Airline delay by Month")
+
+# Numbers of Cancelled & Non-cancelled flights
+
+counts <- aggregate(cvg$CANCELLED, by = list(cvg$CANCELLED), FUN = length)
+names(counts) <- c("Is.cancel","Count")
+p <- barplot(counts$Count, xlab = "Is.cancel", ylab = "Count", names.arg = c("1","0"))
+text(p, counts$Count, labels= counts$Count, xpd=TRUE)
+
+# Numbers of Cancellation reason
+
+cancel <- cvg %>% filter(CANCELLATION_REASON != "NA") %>% count(CANCELLATION_REASON)
+ggplot(cancel, aes(x = n, y = CANCELLATION_REASON, fill = CANCELLATION_REASON)) + geom_col() + geom_text(aes(label = n), hjust = 2)
+
+# Table for Departure delay & Arrival Delay in each Airport
+
+origin <- aggregate(cvg$DEPARTURE_DELAY, by = list(cvg$ORIGIN_AIRPORT), FUN = sum, na.rm = TRUE)
+colnames(origin) <- c("Airport", "Departure_delay")
+origin$Departure_delay <- sort(origin$Departure_delay, decreasing = FALSE)
+
+arrival <- aggregate(cvg$ARRIVAL_DELAY, by = list(cvg$DESTINATION_AIRPORT), FUN = sum, na.rm = TRUE)
+colnames(arrival) <- c("Airport", "Arrival_delay")
+arrival$Arrival_delay <- sort(arrival$Arrival_delay, decreasing = FALSE)
+
+tbl <- cbind(origin,arrival[,2])
+colnames(tbl) <- c("Airport","Depart_delay","Arr_delay")
+tbl
+
+## 4. Visualize the association between some variable pairs
+
+# Total Departure delay in Months
+
+ggplot(cvg, aes(DEPARTURE_DELAY, col = dm)) + geom_bar() + ylab("DEPARTURE DELAY") + xlab("") + ggtitle("Departure Delay per Month")
+
+# Average delay due to weather in Months
+
+weather <- cvg %>% group_by(dm) %>% filter(WEATHER_DELAY != "NA") %>% summarize(avg_weather_delay = mean(WEATHER_DELAY))
+barplot(weather$avg_weather_delay, names.arg = c("Jan","Feb","Mar"), ylab = "Weather delay Avg", col = c("orange", "green", "blue"))
+
+# Departure delay in each Origin airport, faceted by Airline
+
+aa <- cvg %>% filter(DEPARTURE_DELAY != "NA") %>% group_by(ORIGIN_AIRPORT, AIRLINE) %>% summarize(dpt_delay = sum(DEPARTURE_DELAY))%>% arrange(dpt_delay) %>% filter(dpt_delay > 1000)
+ggplot(aa, aes(x = dpt_delay, y = ORIGIN_AIRPORT)) + geom_point() + facet_wrap(~ AIRLINE)
+
+# Total departure delay by Airline
+
+delay <- aggregate(cvg$DEPARTURE_DELAY, by = list(cvg$AIRLINE), FUN = sum, na.rm = TRUE)
+colnames(delay) <- c("Airline", "Departure_delay")
+ggplot(delay, aes(x = Airline, y = Departure_delay)) + geom_col() + geom_text(aes(label = Departure_delay), vjust = -0.25)
+
+# Arrival delay in each Destination airport, faceted by Airline 
+
+bb <- cvg %>% filter(ARRIVAL_DELAY != "NA") %>% group_by(DESTINATION_AIRPORT, AIRLINE) %>% summarize(arrv_delay = sum(DEPARTURE_DELAY))%>% arrange(arrv_delay) %>% filter(arrv_delay > 1000)
+ggplot(bb, aes(x = arrv_delay, y = DESTINATION_AIRPORT)) + geom_point() + facet_wrap(~ AIRLINE)
+
+# Total arrival delay by Airline
+
+arr_delay <- aggregate(cvg$ARRIVAL_DELAY, by = list(cvg$AIRLINE), FUN = sum, na.rm = TRUE)
+colnames(arr_delay) <- c("Airline", "Arr_delay")
+ggplot(arr_delay, aes(x = Airline, y = Arr_delay)) + geom_col() + geom_text(aes(label = Arr_delay), vjust = -0.25)
+
+## 5. Visualize the association between some variable pairs conditional on some other variables
+
+library(PerformanceAnalytics)
+library(GGally)
+
+cvg.perf <- data.frame(cvg$DEPARTURE_DELAY, cvg$ARRIVAL_DELAY, cvg$AIR_SYSTEM_DELAY, cvg$SECURITY_DELAY, cvg$AIRLINE_DELAY, cvg$LATE_AIRCRAFT_DELAY, cvg$WEATHER_DELAY)
+pairs(cvg.perf, pch = 19)
+round(cor(cvg.perf), digits = 3)
+chart.Correlation(R = cvg.perf, histogram = TRUE, pch = 19)
+
+perf <- data.frame(cvg$SECURITY_DELAY, cvg$AIRLINE_DELAY, cvg$LATE_AIRCRAFT_DELAY, cvg$WEATHER_DELAY)
+ggpairs(perf)
+
+## 6. For airlines.csv and airports,csv data sets, how many variables and how many observations in the data? Are there missing values? If so, visualize the missing data pattern
+# Airlines data set
+
+airlines <- read.csv("airlines.csv",header = TRUE, stringsAsFactors = FALSE, na.strings = "")
+
+summary(airlines)
+nrow(airlines)
+ncol(airlines)
+airl <- apply(airlines, 2,function(airlines) sum(is.na(airlines)))
+airl
+
+# Airports data set
+
+airports <- read.csv("airports.csv",header = TRUE, stringsAsFactors = FALSE, na.strings = "")
+
+summary(airports)
+nrow(airports)
+nrow(airlines)
+airp <- apply(airports, 2,function(airports) sum(is.na(airports)))
+airp
+
+gg_miss_var(airports)
+gg_miss_upset(airports)
+
+## 7. Merge CVG_Flights.csv, airlines.csv, and airports.csv
+
+cvg_airlines <- left_join(cvg, airlines, by = c("AIRLINE"="IATA_CODE"))
+airlines_airports <- left_join(airlines, airports, by = "IATA_CODE")
+
+head(cvg_airlines, 10)
+head(airlines_airports,10)
+
+## 8. Questions propose
+
+#Which departure time frame is the busiest among airports
+
+dh <- as.POSIXct(cvg$DEPARTURE_TIME, format = "%H:%M:%S %p")
+cvg$dp <- format(dh, "%H %p")
+
+cvg %>%
+  filter(!is.na(dp)) %>%
+  ggplot(aes(x= dp)) + 
+  geom_bar() + ylab("Busy Frequency") + xlab("Time") + ggtitle("Busy departure time frame among Airports")
+  
+# Which arrival time frame is the busiest among airports
+
+ah <- as.POSIXct(cvg$ARRIVAL_TIME, format = "%H:%M:%S %p")
+cvg$ap <- format(ah, "%H %p")
+
+cvg %>%
+  filter(!is.na(ap)) %>%
+  ggplot(aes(x= ap)) + 
+  geom_bar() + ylab("Busy Frequency") + xlab("Time") + ggtitle("Busy arrival time frame among Airports")
+  
+# Which month is the busiest months 
+
+d<- as.POSIXct(cvg$FLIGHT_DATE, format = "%m/%d/%Y")
+cvg$dm <- format(d, "%m")
+
+ggplot(cvg,aes(dm)) + geom_bar() + ylab("Frequency") + xlab("Month") + ggtitle("Busy month of Air Travel") 
+
+# Which airline has high security delay, at which origin airport
+
+ggplot(cvg, aes(AIRLINE, SECURITY_DELAY)) + geom_point() + facet_wrap(~ORIGIN_AIRPORT) + ylab("Security delay") + xlab("ORIGIN AIRPORT") + ggtitle("Frequency of security delay at Origin Airports")
+
+# Which airline has high security delay, at which destination airport
+
+ggplot(cvg, aes(AIRLINE, SECURITY_DELAY)) + geom_point() + facet_wrap(~DESTINATION_AIRPORT) + ylab("Security delay") + xlab("DESTINATION AIRPORT") + ggtitle("Frequency of security delay at Destination Airports")
+
+```
